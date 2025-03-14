@@ -38,7 +38,7 @@ public abstract class SettingsGui extends Screen {
 		ButtonWidget button = new ButtonWidget(width / 2 - 190, height / 6 - 12, 120, 20,
 				new LiteralText("Default"), (buttonWidget) -> {
 					currentGui = 0;
-					client.openScreen(new RectilinearGui(parentScreen));
+					client.setScreen(new RectilinearGui(parentScreen));
 		});
 		if (this instanceof RectilinearGui) {
 			button.active = false;
@@ -48,7 +48,7 @@ public abstract class SettingsGui extends Screen {
 		button = new ButtonWidget(width / 2 - 60, height / 6 - 12, 120, 20,
 				new LiteralText("Flex"), (buttonWidget) -> {
 					currentGui = 1;
-					client.openScreen(new FlexGui(parentScreen));
+					client.setScreen(new FlexGui(parentScreen));
 				});
 		if (this instanceof FlexGui) {
 			button.active = false;
@@ -58,7 +58,7 @@ public abstract class SettingsGui extends Screen {
 		button = new ButtonWidget(width / 2 + 70, height / 6 - 12, 120, 20,
 				new LiteralText("Advanced"), (buttonWidget) -> {
 					currentGui = 2;
-					client.openScreen(AdvancedGui.getGui(parentScreen));
+					client.setScreen(AdvancedGui.getGui(parentScreen));
 				});
 		if (this instanceof AdvancedGui) {
 			button.active = false;
@@ -66,7 +66,7 @@ public abstract class SettingsGui extends Screen {
 		addButton(button);
 		
 		addButton(new ButtonWidget(this.width / 2 - 100, this.height / 6 + 168, 200, 20, ScreenTexts.DONE, (buttonWidget) -> {
-			client.openScreen(parentScreen);
+			client.setScreen(parentScreen);
 		}));
 	}
 	
