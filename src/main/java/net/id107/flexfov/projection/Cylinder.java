@@ -3,20 +3,13 @@ package net.id107.flexfov.projection;
 import net.id107.flexfov.Reader;
 
 public class Cylinder extends Projection {
-
 	public static double fovy = 90;
-	
-	@Override
+
 	public String getFragmentShader() {
-		return Reader.read("flexfov:shaders/cylinder.fs");
+		return Reader.read("shaders/cylinder.fs");
 	}
-	
-	@Override
+
 	public double getFovY() {
-		if (fovy == 180) {
-			return 179.9999;
-		} else {
-			return fovy;
-		}
+		return fovy == 180.0 ? 179.9999 : fovy;
 	}
 }

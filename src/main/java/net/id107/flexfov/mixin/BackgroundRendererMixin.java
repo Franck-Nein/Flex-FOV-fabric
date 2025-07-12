@@ -9,17 +9,22 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import net.id107.flexfov.projection.Projection;
 import net.minecraft.client.render.BackgroundRenderer;
 
-@Mixin(BackgroundRenderer.class)
+@Mixin({BackgroundRenderer.class})
 public abstract class BackgroundRendererMixin {
-	@Shadow static float red;
-	@Shadow static float green;
-	@Shadow static float blue;
-	
-	@Inject(method = "render(Lnet/minecraft/client/render/Camera;FLnet/minecraft/client/world/ClientWorld;IF)V",
-			at = @At(value = "TAIL"))
-	private static void skyColor(CallbackInfo callbackInfo) {
-		Projection.backgroundRed = red;
-		Projection.backgroundGreen = green;
-		Projection.backgroundBlue = blue;
+	@Shadow
+	private static float red;
+	@Shadow
+	private static float green;
+	@Shadow
+	private static float blue;
+
+	@Inject(
+		method = {"render"},
+		at = {@At("TAIL")}
+	)
+	private static void skyColor(CallbackInfo ci) {
+		Projection.backgroundColor[0] = red;
+		Projection.backgroundColor[1] = green;
+		Projection.backgroundColor[2] = blue;
 	}
 }

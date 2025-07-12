@@ -10,12 +10,24 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 
 @Mixin(Screen.class)
-public class ScreenMixin {
+public abstract class ScreenMixin {
 
-	@Inject(method = "renderBackground(Lnet/minecraft/client/util/math/MatrixStack;)V", at = @At(value = "HEAD"), cancellable = true)
-	private void render(CallbackInfo callbackInfo) {
-		if (Projection.getProjection().getResizeGui() && MinecraftClient.getInstance().world != null) {
-			callbackInfo.cancel();
-		}
+	@Inject(
+		method = "renderBackground(Lnet/minecraft/client/util/math/MatrixStack;)V", 
+		at = @At(value = "HEAD"), 
+		cancellable = true)
+
+	private void renderBackground(CallbackInfo ci) {
+		  if (
+			MinecraftClient.getInstance().world != null &&
+				(
+				Projection.getInstance().getResizeGui() ||
+				false
+				)
+			) 
+			{
+					ci.cancel();
+				}
+
 	}
 }

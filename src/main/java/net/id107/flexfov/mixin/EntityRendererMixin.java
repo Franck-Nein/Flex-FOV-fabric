@@ -2,55 +2,38 @@ package net.id107.flexfov.mixin;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.ModifyVariable;
-
+import org.spongepowered.asm.mixin.injection.Redirect;
 import net.id107.flexfov.projection.Projection;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.entity.EntityRenderer;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.client.util.math.Vector3f;
+import net.minecraft.util.math.Vec3f;
 import net.minecraft.entity.Entity;
 import net.minecraft.util.math.Quaternion;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.render.entity.EntityRenderer;
 
-@Mixin(EntityRenderer.class)
-public class EntityRendererMixin {
-
-	private Entity currentEntity;
-	
-	@ModifyVariable(method = "renderLabelIfPresent(Lnet/minecraft/entity/Entity;Lnet/minecraft/text/Text;Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;I)V",
-			at = @At(value = "HEAD"))
-	private Entity getEntity(Entity entity) {
-		currentEntity = entity;
-		return entity;
-	}
-	
-	@ModifyVariable(method = "renderLabelIfPresent(Lnet/minecraft/entity/Entity;Lnet/minecraft/text/Text;Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;I)V",
-			at = @At(value = "INVOKE", ordinal = 0,
-			target = "Lnet/minecraft/client/util/math/MatrixStack;multiply(Lnet/minecraft/util/math/Quaternion;)V"))
-	private MatrixStack rotateNameplatePre(MatrixStack matrixStack) {
-		if (Projection.getProjection().shouldRotateParticles()) {
-			matrixStack.push();
-		}
-		return matrixStack;
-	}
-	
-	@ModifyVariable(method = "renderLabelIfPresent(Lnet/minecraft/entity/Entity;Lnet/minecraft/text/Text;Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;I)V",
-			at = @At(value = "INVOKE", ordinal = 0,
-			target = "Lnet/minecraft/client/util/math/MatrixStack;scale(FFF)V"))
-	private MatrixStack rotateNameplate(MatrixStack matrixStack) {
-		if (Projection.getProjection().shouldRotateParticles()) {
-			matrixStack.pop();
+@Mixin({EntityRenderer.class})
+public abstract class EntityRendererMixin {
+	@Redirect(
+		method = {"renderLabelIfPresent"},
+		at = @At(
+	value = "INVOKE",
+	target = "Lnet/minecraft/client/util/math/MatrixStack;multiply(Lnet/minecraft/util/math/Quaternion;)V"
+)
+	)
+	private void rotateNameplate(MatrixStack instance, Quaternion quaternion, Entity entity) {
+		if (!Projection.getInstance().shouldRotateParticles()) {
+			instance.multiply(quaternion);
+		} else {
 			MinecraftClient mc = MinecraftClient.getInstance();
-			Entity camera = mc.cameraEntity;
-			Vec3d cameraPos = camera.getPos().subtract(camera.prevX, camera.prevY, camera.prevZ).multiply(Projection.getTickDelta()).add(new Vec3d(camera.prevX, camera.prevY, camera.prevZ));
-			Vec3d entityPos = new Vec3d(currentEntity.getX(), currentEntity.getY(), currentEntity.getZ()).subtract(new Vec3d(currentEntity.prevX, currentEntity.prevY, currentEntity.prevZ)).multiply(Projection.getTickDelta()).add(new Vec3d(currentEntity.prevX, currentEntity.prevY, currentEntity.prevZ));
-			Vec3d dir = cameraPos.subtract(entityPos).normalize();
-			Quaternion quaternion = new Quaternion(0, 0, 0, 1);
-			quaternion.hamiltonProduct(Vector3f.POSITIVE_Y.getRadialQuaternion((float)Math.atan2(-dir.x, -dir.z)));
-			quaternion.hamiltonProduct(Vector3f.POSITIVE_X.getRadialQuaternion((float)Math.asin(dir.y)));
-			matrixStack.multiply(quaternion);
+			float tickDelta = mc.getTickDelta();
+			Vec3d entityPos = (new Vec3d(MathHelper.lerp((double)tickDelta, entity.prevX, entity.getX()), MathHelper.lerp((double)tickDelta, entity.prevY, entity.getY()), MathHelper.lerp((double)tickDelta, entity.prevZ, entity.getZ()))).add(0.0, (double)(entity.getHeight() + 0.5F), 0.0);
+			Vec3d dir = mc.gameRenderer.getCamera().getPos().subtract(entityPos).normalize();
+			Quaternion rotation = new Quaternion(0.0F, 0.0F, 0.0F, 1.0F);
+			rotation.hamiltonProduct(Vec3f.POSITIVE_Y.getRadialQuaternion((float)Math.atan2(-dir.x, -dir.z)));
+			rotation.hamiltonProduct(Vec3f.POSITIVE_X.getRadialQuaternion((float)Math.asin(dir.y)));
+			instance.multiply(rotation);
 		}
-		return matrixStack;
 	}
 }

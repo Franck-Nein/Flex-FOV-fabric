@@ -1,19 +1,23 @@
 {
   "required": true,
-  "minVersion": "0.8",
   "package": "net.id107.flexfov.mixin",
-  "compatibilityLevel": "JAVA_8",
-  "mixins": [
-  ],
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [],
   "client": [
     "BackgroundRendererMixin",
     "BillboardParticleMixin",
     "EntityRendererMixin",
+    "FramebufferMixin",
     "GameRendererMixin",
+    "InGameHudMixin",
+    "MinecraftClientMixin",
     "OptionsScreenMixin",
-    "ScreenMixin"
+    "ScreenMixin",
+    "WindowFramebufferMixin",
+    "WorldRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1
-  }
+  },
+  "refmap": "FlexFOV-refmap.json"
 }

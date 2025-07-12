@@ -7,22 +7,28 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import net.id107.flexfov.gui.SettingsGui;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.screen.options.OptionsScreen;
+import net.minecraft.client.gui.screen.option.OptionsScreen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.LiteralText;
 import net.minecraft.text.Text;
 
-@Mixin(OptionsScreen.class)
+@Mixin({OptionsScreen.class})
 public abstract class OptionsScreenMixin extends Screen {
-	
-	public OptionsScreenMixin(Text text) {
-		super(text);
+	protected OptionsScreenMixin(Text title) {
+		super(title);
 	}
-	
-	@Inject(method = "init()V", at = @At(value = "TAIL"))
-	private void newButton(CallbackInfo callbackInfo) {
-		addButton(new ButtonWidget(width / 2 - 155, height / 6 + 15, 150, 20, new LiteralText("Flex FOV Settings"), (buttonWidget) -> {
-			client.openScreen(SettingsGui.getGui(this));
+
+	@Inject(
+		method = {"init"},
+		at = {@At(
+	value = "INVOKE",
+	target = "Lnet/minecraft/client/gui/screen/option/OptionsScreen;addDrawableChild(Lnet/minecraft/client/gui/Element;)Lnet/minecraft/client/gui/Element;",
+	ordinal = 4
+)}
+	)
+	private void addButton(CallbackInfo ci) {
+		addDrawableChild(new ButtonWidget(width / 2 - 155, height / 6 + 15, 150, 20, new LiteralText("Flex FOV Settings"), (button) -> {
+			client.setScreen(SettingsGui.getGui(this));
 		}));
 	}
 }

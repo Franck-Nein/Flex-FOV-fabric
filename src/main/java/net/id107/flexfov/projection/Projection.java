@@ -1,370 +1,340 @@
 package net.id107.flexfov.projection;
 
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL13;
-import org.lwjgl.opengl.GL20;
+import org.lwjgl.opengl.GL30;
 
-import com.mojang.blaze3d.platform.FramebufferInfo;
-import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
-
 import net.id107.flexfov.BufferManager;
 import net.id107.flexfov.Reader;
 import net.id107.flexfov.ShaderManager;
-import net.id107.flexfov.gui.SettingsGui;
+import net.id107.flexfov.ConfigManager;
+import net.id107.flexfov.mixinHelpers.FramebufferAdditions;
+import net.id107.flexfov.mixinHelpers.GameRendererAdditions;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.Framebuffer;
 import net.minecraft.client.util.Window;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.math.Matrix4f;
 import net.minecraft.util.math.Quaternion;
+import net.minecraft.client.render.GameRenderer;
 
 public abstract class Projection {
-	
-	private static Projection currentProjection;
-	private static ShaderManager shader = new ShaderManager();
-	
-	public static float backgroundRed;
-	public static float backgroundGreen;
-	public static float backgroundBlue;
-	
-	public static double fov = 140f;
-	public static int antialiasing = 16;
+	public static final float[] backgroundColor = new float[3];
+	public static double fov = 140.0;
+
+	public static int antialiasing = 1;
 	public static boolean skyBackground = true;
-	public static float zoom = 0;
-	public static boolean resizeGui;
-	
-	protected int renderPass;
-	
-	private static boolean hudHidden;
-	private static float tickDelta;
-	
-	private static int screenWidth;
-	private static int screenHeight;
-	
-	public static Projection getProjection() {
-		if (currentProjection == null) {
-			SettingsGui.getGui(null);
+	public static float zoom = 0.0F;
+	public static boolean resizeGui = false;
+	public static boolean showHand = true;
+	protected ShaderManager shaderManager;
+	public int renderPass;
+	private static Projection instance;
+	private static Projections projection;
+	public static Projections defaultProjection;
+
+	public static Projection getInstance() {
+		if (instance == null) {
+			setProjection(defaultProjection);
 		}
-		return currentProjection;
+
+		return instance;
 	}
-	
-	public static void setProjection(Projection projection) {
-		currentProjection = projection;
-		if (shader != null) {
-			shader.deleteShaderProgram();
-			shader.createShaderProgram(projection);
+
+	public static void setProjection(Projections projection) {
+		Projection.projection = projection;
+		switch (projection.ordinal()) {
+			case 0:
+				new Cubic();
+				break;
+			case 1:
+				new Cylinder();
+				break;
+			case 2:
+				new Equirectangular();
+				break;
+			case 3:
+				new Fisheye();
+				break;
+			case 4:
+				new Flex();
+				break;
+			case 5:
+				new Hammer();
+				break;
+			case 6:
+				new Panini();
+				break;
+			case 7:
+				new Rectilinear();
 		}
+
+		ConfigManager.saveConfig();
 	}
-	
+
+	public static Projections getProjection() {
+		return projection;
+	}
+
+	protected Projection() {
+		if (instance != null) {
+			deleteProjection();
+		}
+
+		shaderManager = new ShaderManager();
+		shaderManager.createShaderProgram(this);
+		instance = this;
+	}
+
+	public static void deleteProjection() {
+		instance.shaderManager.deleteShaderProgram();
+		instance.shaderManager = null;
+		instance = null;
+	}
+
 	public String getVertexShader() {
-		return Reader.read("flexfov:shaders/quad.vs");
+		return Reader.read("shaders/quad.vs");
 	}
-	
+
 	public abstract String getFragmentShader();
-	
-	public void renderWorld(float tickDelta, long startTime, boolean tick) {
+
+	public void renderWorld(GameRenderer gameRenderer, float tickDelta, long limitTime, MatrixStack matrices) {
 		MinecraftClient mc = MinecraftClient.getInstance();
-		Projection.tickDelta = tickDelta;
-		int displayWidth = mc.getWindow().getWidth();
-		int displayHeight = mc.getWindow().getHeight();
-		hudHidden = mc.options.hudHidden;
-		
-		if (BufferManager.getFramebuffer() == null) {
-			BufferManager.createFramebuffer();
-			shader.createShaderProgram(getProjection());
-			screenWidth = displayWidth;
-			screenHeight = displayHeight;
-		}
-		
-		if (screenWidth != displayWidth || screenHeight != displayHeight) {
-			shader.deleteShaderProgram();
-			BufferManager.deleteFramebuffer();
-			BufferManager.createFramebuffer();
-			shader.createShaderProgram(getProjection());
-			screenWidth = displayWidth;
-			screenHeight = displayHeight;
-		}
-		
-		if (Math.max(getFovX(), getFovY()) > 90 || zoom < 0) {
-			for (renderPass = 1; renderPass < 5; renderPass++) {
-				GL11.glViewport(0, 0, displayWidth, displayHeight);
-				mc.worldRenderer.scheduleTerrainUpdate();
-				mc.gameRenderer.renderWorld(tickDelta, startTime, new MatrixStack());
-				saveRenderPass();
+
+		for(renderPass = 5; renderPass >= 0; --renderPass) {
+			mc.worldRenderer.scheduleTerrainUpdate();
+			gameRenderer.renderWorld(tickDelta, limitTime, matrices);
+			if (getResizeGui() && renderPass == 0) {
+				return;
 			}
-			if (Math.max(getFovX(), getFovY()) > 250 || zoom < 0) {
-				renderPass = 5;
-				GL11.glViewport(0, 0, displayWidth, displayHeight);
-				mc.worldRenderer.scheduleTerrainUpdate();
-				mc.gameRenderer.renderWorld(tickDelta, startTime, new MatrixStack());
-				saveRenderPass();
-			}
+
+			saveRenderPass();
 		}
-		renderPass = 0;
-		GL11.glViewport(0, 0, displayWidth, displayHeight);
-		mc.worldRenderer.scheduleTerrainUpdate();
-		
-		mc.options.hudHidden = hudHidden;
+
+		loadUniforms();
+		runShader();
 	}
-	
+
+	public static Matrix4f degfToQuat(float angle, float x, float y, float z) {
+		float halfAngleRadians = (float) Math.toRadians(angle / 2.0);
+
+		float w = (float) Math.cos(halfAngleRadians);
+		float qx = x * (float) Math.sin(halfAngleRadians);
+		float qy = y * (float) Math.sin(halfAngleRadians);
+		float qz = z * (float) Math.sin(halfAngleRadians);
+
+		return new Matrix4f (new Quaternion(qx, qy, qz, w));
+  }
+
 	public void rotateCamera(MatrixStack matrixStack) {
-		Matrix4f matrix;
+		//Matrix4f matrix;
 		switch (renderPass) {
-		case 0:
-			break;
-		case 1:
-			matrix = new Matrix4f(new Quaternion(0, 0.707106781f, 0, 0.707106781f)); //look right
-			matrixStack.peek().getModel().multiply(matrix);
-			break;
-		case 2:
-			matrix = new Matrix4f(new Quaternion(0, -0.707106781f, 0, 0.707106781f)); //look left
-			matrixStack.peek().getModel().multiply(matrix);
-			break;
-		case 3:
-			matrix = new Matrix4f(new Quaternion(0.707106781f, 0, 0, 0.707106781f)); //look down
-			matrixStack.peek().getModel().multiply(matrix);
-			break;
-		case 4:
-			matrix = new Matrix4f(new Quaternion(-0.707106781f, 0, 0, 0.707106781f)); //look up
-			matrixStack.peek().getModel().multiply(matrix);
-			break;
-		case 5:
-			matrix = new Matrix4f(new Quaternion(0, -1, 0, 0)); //look back
-			matrixStack.peek().getModel().multiply(matrix);
-			break;
+			case 0://Front
+			default:
+				matrixStack.peek().getPositionMatrix().multiply(degfToQuat(360, 1, 0, 0));
+				break;
+			case 1: //Rigth
+				//matrix = new Matrix4f(new Quaternion(0.0F, 0.70710677F, 0.0F, 0.70710677F));
+				matrixStack.peek().getPositionMatrix().multiply(degfToQuat(90, 0, 1, 0));
+				//GL30.glRotatef(-90, 0, 1, 0);
+				break;
+			case 2: //Left
+				//matrix = new Matrix4f(new Quaternion(0.0F, -0.70710677F, 0.0F, 0.70710677F));
+				matrixStack.peek().getPositionMatrix().multiply(degfToQuat(-90, 0, 1, 0));
+				//GL30.glRotatef(90, 0, 1, 0);
+				break;
+			case 3: //Bottom
+				//matrix = new Matrix4f(new Quaternion(0.70710677F, 0.0F, 0.0F, 0.70710677F));
+				matrixStack.peek().getPositionMatrix().multiply(degfToQuat(90, 1, 0, 0));
+				//GL30.glRotatef(-90, 1, 0, 0);
+				break;
+			case 4: //Top
+				//matrix = new Matrix4f(new Quaternion(-0.70710677F, 0.0F, 0.0F, 0.70710677F));
+				matrixStack.peek().getPositionMatrix().multiply(degfToQuat(-90, 1, 0, 0));
+				//GL30.glRotatef(90, 1, 0, 0);
+				break;
+			case 5: //Behind
+				//matrix = new Matrix4f(new Quaternion(0.0F, -1.0F, 0.0F, 0.0F));
+				matrixStack.peek().getPositionMatrix().multiply(degfToQuat(180, 0, 1, 0));
+				//GL30.glRotatef(180, 0, 1, 0);
 		}
+
 	}
-	
+
 	public void saveRenderPass() {
-		if (getResizeGui() && renderPass == 0) {
-			MinecraftClient mc = MinecraftClient.getInstance();
-			Window window = mc.getWindow();
-			RenderSystem.matrixMode(5889);
-			RenderSystem.loadIdentity();
-			RenderSystem.ortho(0.0D, (double)window.getFramebufferWidth() / window.getScaleFactor(), (double)window.getFramebufferHeight() / window.getScaleFactor(), 0.0D, 1000.0D, 3000.0D);
-			RenderSystem.matrixMode(5888);
-			RenderSystem.loadIdentity();
-			RenderSystem.translatef(0.0F, 0.0F, -2000.0F);
-			RenderSystem.defaultAlphaFunc();
-			RenderSystem.clear(256, MinecraftClient.IS_SYSTEM_MAC);
-			MatrixStack matrixStack = new MatrixStack();
-			mc.inGameHud.render(matrixStack, tickDelta);
-			RenderSystem.clear(256, MinecraftClient.IS_SYSTEM_MAC);
-			if (mc.currentScreen != null) {
-				int i = (int)(mc.mouse.getX() * (double)mc.getWindow().getScaledWidth() / (double)mc.getWindow().getWidth());
-				int j = (int)(mc.mouse.getY() * (double)mc.getWindow().getScaledHeight() / (double)mc.getWindow().getHeight());
-				mc.currentScreen.render(matrixStack, i, j, mc.getLastFrameDuration());
-			}
-		}
-		
 		Framebuffer defaultFramebuffer = MinecraftClient.getInstance().getFramebuffer();
-		Framebuffer targetFramebuffer = BufferManager.getFramebuffer();
+		Framebuffer targetFramebuffer = BufferManager.getInstance().getFramebuffer();
+		targetFramebuffer.beginWrite(false);
+		//GlStateManager._clear(16640, MinecraftClient.IS_SYSTEM_MAC);
+		RenderSystem.clear(GL30.GL_DEPTH_BUFFER_BIT, MinecraftClient.IS_SYSTEM_MAC);
+		GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, defaultFramebuffer.fbo);
+		GL30.glReadBuffer(GL30.GL_COLOR_ATTACHMENT0);
+		GL30.glDrawBuffer(GL30.GL_COLOR_ATTACHMENT0 + renderPass);
+		GL30.glBlitFramebuffer(BufferManager.minX, BufferManager.minY, BufferManager.maxX, BufferManager.maxY, 0, 0, targetFramebuffer.textureWidth, targetFramebuffer.textureHeight, GL30.GL_COLOR_BUFFER_BIT, GL30.GL_LINEAR);
+		GL30.glDrawBuffer(GL30.GL_COLOR_ATTACHMENT0);
+		GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, 0);
+		defaultFramebuffer.beginWrite(false);
+		//GlStateManager._clear(16640, MinecraftClient.IS_SYSTEM_MAC);
+		RenderSystem.clear(GL30.GL_DEPTH_BUFFER_BIT, MinecraftClient.IS_SYSTEM_MAC);
 		
-		GlStateManager.bindFramebuffer(FramebufferInfo.FRAME_BUFFER, targetFramebuffer.fbo);
-		GL11.glViewport(0, 0, targetFramebuffer.textureWidth, targetFramebuffer.textureHeight);
-		GlStateManager.framebufferTexture2D(FramebufferInfo.FRAME_BUFFER, FramebufferInfo.COLOR_ATTACHMENT,
-				GL11.GL_TEXTURE_2D, BufferManager.framebufferTextures[renderPass], 0);
-		
-		GL11.glClear(GL11.GL_COLOR_BUFFER_BIT);
-		GL11.glMatrixMode(GL11.GL_PROJECTION);
-		GL11.glPushMatrix();
-		GL11.glLoadIdentity();
-		GL11.glOrtho(-1, 1, -1, 1, -1, 1);
-		GL11.glMatrixMode(GL11.GL_MODELVIEW);
-		GL11.glPushMatrix();
-		GL11.glLoadIdentity();
-		
-		GL11.glBindTexture(GL11.GL_TEXTURE_2D, defaultFramebuffer.getColorAttachment());
-		GL11.glBegin(GL11.GL_QUADS);
-		{
-			GL11.glTexCoord2f(BufferManager.getMinX(), BufferManager.getMinY());
-			GL11.glVertex2f(-1, -1);
-			GL11.glTexCoord2f(BufferManager.getMaxX(), BufferManager.getMinY());
-			GL11.glVertex2f(1, -1);
-			GL11.glTexCoord2f(BufferManager.getMaxX(), BufferManager.getMaxY());
-			GL11.glVertex2f(1, 1);
-			GL11.glTexCoord2f(BufferManager.getMinX(), BufferManager.getMaxY());
-			GL11.glVertex2f(-1, 1);
-		}
-		GL11.glEnd();
-		GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);
-		
-		GL11.glMatrixMode(GL11.GL_PROJECTION);
-		GL11.glPopMatrix();
-		GL11.glMatrixMode(GL11.GL_MODELVIEW);
-		GL11.glPopMatrix();
-		
-		GlStateManager.bindFramebuffer(FramebufferInfo.FRAME_BUFFER, defaultFramebuffer.fbo);
 	}
-	
-	public void loadUniforms(float tickDelta) {
+
+	public void loadUniforms() {
+		int shaderProgram = shaderManager.getShaderProgram();
+		GL30.glUseProgram(shaderProgram);
 		MinecraftClient mc = MinecraftClient.getInstance();
-		int shaderProgram = shader.getShaderProgram();
-		int displayWidth = MinecraftClient.getInstance().getWindow().getWidth();
-		int displayHeight = MinecraftClient.getInstance().getWindow().getHeight();
-		GL20.glUseProgram(shaderProgram);
-		
-		int aaUniform = GL20.glGetUniformLocation(shaderProgram, "antialiasing");
-		GL20.glUniform1i(aaUniform, getAntialiasing());
-		int pixelOffestUniform;
+		Window window = mc.getWindow();
+		int displayWidth = window.getWidth();
+		int displayHeight = window.getHeight();
+		int aaUniform = GL30.glGetUniformLocation(shaderProgram, "antialiasing");
+		GL30.glUniform1i(aaUniform, getAntialiasing());
+		int pixelOffsetUniform;
+		int zoomUniform;
 		if (getAntialiasing() == 16) {
-			float left = (-1f+0.25f)/displayWidth;
-			float top = (-1f+0.25f)/displayHeight;
-			float right = 0.5f/displayWidth;
-			float bottom = 0.5f/displayHeight;
-			for (int y = 0; y < 4; y++) {
-				for (int x = 0; x < 4; x++) {
-					pixelOffestUniform = GL20.glGetUniformLocation(shaderProgram, "pixelOffset[" + (y*4+x) + "]");
-					GL20.glUniform2f(pixelOffestUniform, left + right*x, top + bottom*y);
+			float left = -0.75F / (float)displayWidth;
+			float top = -0.75F / (float)displayHeight;
+			float right = 0.5F / (float)displayWidth;
+			float bottom = 0.5F / (float)displayHeight;
+
+			for(int y = 0; y < 4; ++y) {
+				for(zoomUniform = 0; zoomUniform < 4; ++zoomUniform) {
+					pixelOffsetUniform = GL30.glGetUniformLocation(shaderProgram, "pixelOffset[" + (y * 4 + zoomUniform) + "]");
+					GL30.glUniform2f(pixelOffsetUniform, left + right * (float)zoomUniform, top + bottom * (float)y);
 				}
 			}
 		} else if (getAntialiasing() == 4) {
-			pixelOffestUniform = GL20.glGetUniformLocation(shaderProgram, "pixelOffset[0]");
-			GL20.glUniform2f(pixelOffestUniform, -0.5f/displayWidth, -0.5f/displayHeight);
-			pixelOffestUniform = GL20.glGetUniformLocation(shaderProgram, "pixelOffset[1]");
-			GL20.glUniform2f(pixelOffestUniform, 0.5f/displayWidth, -0.5f/displayHeight);
-			pixelOffestUniform = GL20.glGetUniformLocation(shaderProgram, "pixelOffset[2]");
-			GL20.glUniform2f(pixelOffestUniform, -0.5f/displayWidth, 0.5f/displayHeight);
-			pixelOffestUniform = GL20.glGetUniformLocation(shaderProgram, "pixelOffset[3]");
-			GL20.glUniform2f(pixelOffestUniform, 0.5f/displayWidth, 0.5f/displayHeight);
-		} else { //if (getAntialiasing() == 1)
-			pixelOffestUniform = GL20.glGetUniformLocation(shaderProgram, "pixelOffset[0]");
-			GL20.glUniform2f(pixelOffestUniform, 0, 0);
-		}
-		
-		int texUniform = GL20.glGetUniformLocation(shaderProgram, "texFront");
-		GL20.glUniform1i(texUniform, 0);
-		texUniform = GL20.glGetUniformLocation(shaderProgram, "texBack");
-		GL20.glUniform1i(texUniform, 5);
-		texUniform = GL20.glGetUniformLocation(shaderProgram, "texLeft");
-		GL20.glUniform1i(texUniform, 2);
-		texUniform = GL20.glGetUniformLocation(shaderProgram, "texRight");
-		GL20.glUniform1i(texUniform, 1);
-		texUniform = GL20.glGetUniformLocation(shaderProgram, "texTop");
-		GL20.glUniform1i(texUniform, 4);
-		texUniform = GL20.glGetUniformLocation(shaderProgram, "texBottom");
-		GL20.glUniform1i(texUniform, 3);
-		
-		int fovxUniform = GL20.glGetUniformLocation(shaderProgram, "fovx");
-		GL20.glUniform1f(fovxUniform, (float) getFovX());
-		int fovyUniform = GL20.glGetUniformLocation(shaderProgram, "fovy");
-		GL20.glUniform1f(fovyUniform, (float) getFovY());
-		
-		int backgroundUniform = GL20.glGetUniformLocation(shaderProgram, "backgroundColor");
-		float backgroundColor[] = getBackgroundColor(false);
-		if (backgroundColor != null) {
-			GL20.glUniform4f(backgroundUniform, backgroundColor[0], backgroundColor[1], backgroundColor[2], 1);
+			pixelOffsetUniform = GL30.glGetUniformLocation(shaderProgram, "pixelOffset[0]");
+			GL30.glUniform2f(pixelOffsetUniform, -0.5F / (float)displayWidth, -0.5F / (float)displayHeight);
+			pixelOffsetUniform = GL30.glGetUniformLocation(shaderProgram, "pixelOffset[1]");
+			GL30.glUniform2f(pixelOffsetUniform, 0.5F / (float)displayWidth, -0.5F / (float)displayHeight);
+			pixelOffsetUniform = GL30.glGetUniformLocation(shaderProgram, "pixelOffset[2]");
+			GL30.glUniform2f(pixelOffsetUniform, -0.5F / (float)displayWidth, 0.5F / (float)displayHeight);
+			pixelOffsetUniform = GL30.glGetUniformLocation(shaderProgram, "pixelOffset[3]");
+			GL30.glUniform2f(pixelOffsetUniform, 0.5F / (float)displayWidth, 0.5F / (float)displayHeight);
 		} else {
-			GL20.glUniform4f(backgroundUniform, 0, 0, 0, 1);
+			pixelOffsetUniform = GL30.glGetUniformLocation(shaderProgram, "pixelOffset[0]");
+			GL30.glUniform2f(pixelOffsetUniform, 0.0F, 0.0F);
 		}
-		
-		int zoomUniform = GL20.glGetUniformLocation(shaderProgram, "zoom");
-		GL20.glUniform1f(zoomUniform, (float)Math.pow(2, -zoom));
-		
-		int drawCursorUniform = GL20.glGetUniformLocation(shaderProgram, "drawCursor");
-		GL20.glUniform1i(drawCursorUniform, (getResizeGui() && mc.currentScreen != null) ? 1 : 0);
-		int cursorPosUniform = GL20.glGetUniformLocation(shaderProgram, "cursorPos");
-		Window window = mc.getWindow();
+
+		int texUniform = GL30.glGetUniformLocation(shaderProgram, "texFront");
+		GL30.glUniform1i(texUniform, 0);
+		texUniform = GL30.glGetUniformLocation(shaderProgram, "texBack");
+		GL30.glUniform1i(texUniform, 5);
+		texUniform = GL30.glGetUniformLocation(shaderProgram, "texLeft");
+		GL30.glUniform1i(texUniform, 2);
+		texUniform = GL30.glGetUniformLocation(shaderProgram, "texRight");
+		GL30.glUniform1i(texUniform, 1);
+		texUniform = GL30.glGetUniformLocation(shaderProgram, "texTop");
+		GL30.glUniform1i(texUniform, 4);
+		texUniform = GL30.glGetUniformLocation(shaderProgram, "texBottom");
+		GL30.glUniform1i(texUniform, 3);
+		int fovxUniform = GL30.glGetUniformLocation(shaderProgram, "fovx");
+		GL30.glUniform1f(fovxUniform, (float)getFovX());
+		int fovyUniform = GL30.glGetUniformLocation(shaderProgram, "fovy");
+		GL30.glUniform1f(fovyUniform, (float)getFovY());
+		int backgroundUniform = GL30.glGetUniformLocation(shaderProgram, "backgroundColor");
+		float[] backgroundColor = getBackgroundColor(skyBackground);
+		if (backgroundColor != null) {
+			GL30.glUniform4f(backgroundUniform, backgroundColor[0], backgroundColor[1], backgroundColor[2], 1.0F);
+		} else {
+			GL30.glUniform4f(backgroundUniform, 0.0F, 0.0F, 0.0F, 1.0F);
+		}
+
+		zoomUniform = GL30.glGetUniformLocation(shaderProgram, "zoom");
+		GL30.glUniform1f(zoomUniform, (float)Math.pow(2.0, (double)(-zoom)));
+		int drawCursorUniform = GL30.glGetUniformLocation(shaderProgram, "drawCursor");
+		GL30.glUniform1i(drawCursorUniform, getResizeGui() && mc.currentScreen != null ? 1 : 0);
+		int cursorPosUniform = GL30.glGetUniformLocation(shaderProgram, "cursorPos");
 		float mouseX = (float)mc.mouse.getX() / (float)window.getWidth();
 		float mouseY = (float)mc.mouse.getY() / (float)window.getHeight();
-		mouseX = (mouseX - 0.5f) * window.getWidth() / (float)window.getHeight() + 0.5f;
-		mouseX = Math.max(0, Math.min(1, mouseX));
-		GL20.glUniform2f(cursorPosUniform, mouseX, 1-mouseY);
+		mouseX = (mouseX - 0.5F) * (float)window.getWidth() / (float)window.getHeight() + 0.5F;
+		mouseX = Math.max(0.0F, Math.min(1.0F, mouseX));
+		GL30.glUniform2f(cursorPosUniform, mouseX, 1.0F - mouseY);
 	}
-	
-	public void runShader(float tickDelta) {
-		int displayWidth = MinecraftClient.getInstance().getWindow().getWidth();
-		int displayHeight = MinecraftClient.getInstance().getWindow().getHeight();
-		GL13.glActiveTexture(GL13.GL_TEXTURE2);
-		int lightmap = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
-		
-		GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
-		GL11.glMatrixMode(GL11.GL_PROJECTION);
-		GL11.glPushMatrix();
-		GL11.glLoadIdentity();
-		GL11.glOrtho(-1, 1, -1, 1, -1, 1);
-		GL11.glMatrixMode(GL11.GL_MODELVIEW);
-		GL11.glPushMatrix();
-		GL11.glLoadIdentity();
-		
-		for (int i = 0; i < BufferManager.framebufferTextures.length; i++) {
-			GL13.glActiveTexture(GL13.GL_TEXTURE0+i);
-			GL11.glBindTexture(GL11.GL_TEXTURE_2D, BufferManager.framebufferTextures[i]);
+
+	public void runShader() {
+		Framebuffer customFramebuffer = BufferManager.getInstance().getFramebuffer();
+		int[] colorArray = ((FramebufferAdditions)customFramebuffer).flexFOV$getColorArray();
+		GL30.glActiveTexture(GL30.GL_TEXTURE2);
+		int texture2 = GL30.glGetInteger(GL30.GL_TEXTURE_BINDING_2D);
+
+		int i;
+		for(i = 0; i < colorArray.length; ++i) {
+			GL30.glActiveTexture(GL30.GL_TEXTURE0 + i);
+			GL30.glBindTexture(GL30.GL_TEXTURE_2D, colorArray[i]);
 		}
-		GL11.glViewport(0, 0, displayWidth, displayHeight);
-		GL11.glBegin(GL11.GL_QUADS);
-		{
-			GL11.glTexCoord2f(0, 0);
-			GL11.glVertex2f(-1, -1);
-			GL11.glTexCoord2f(1, 0);
-			GL11.glVertex2f(1, -1);
-			GL11.glTexCoord2f(1, 1);
-			GL11.glVertex2f(1, 1);
-			GL11.glTexCoord2f(0, 1);
-			GL11.glVertex2f(-1, 1);
+
+		BufferManager.getInstance().draw();
+
+		for(i = colorArray.length - 1; i >= 0; --i) {
+			GL30.glActiveTexture(GL30.GL_TEXTURE1);
+			GL30.glBindTexture(GL30.GL_TEXTURE_2D, 0);
 		}
-		GL11.glEnd();
-		for (int i = BufferManager.framebufferTextures.length-1; i >= 0; i--) {
-			GL13.glActiveTexture(GL13.GL_TEXTURE0+i);
-			GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);
+
+		GL30.glActiveTexture(GL30.GL_TEXTURE2);
+		GL30.glBindTexture(GL30.GL_TEXTURE_2D, texture2);
+		GL30.glActiveTexture(GL30.GL_TEXTURE0);
+		GL30.glUseProgram(0);
+		if (getShowHand() && !getResizeGui()) {
+			RenderSystem.clear(GL30.GL_DEPTH_BUFFER_BIT, MinecraftClient.IS_SYSTEM_MAC);
+			((GameRendererAdditions)MinecraftClient.getInstance().gameRenderer).flexFOV$renderHand();
 		}
-		
-		GL11.glMatrixMode(GL11.GL_PROJECTION);
-		GL11.glPopMatrix();
-		GL11.glMatrixMode(GL11.GL_MODELVIEW);
-		GL11.glPopMatrix();
-		
-		GL13.glActiveTexture(GL13.GL_TEXTURE2);
-		GL11.glBindTexture(GL11.GL_TEXTURE_2D, lightmap);
-		GL13.glActiveTexture(GL13.GL_TEXTURE0);
-		
-		GL20.glUseProgram(0);
+
 	}
-	
-	protected int getShaderProgram() {
-		return shader.getShaderProgram();
-	}
-	
-	public static float getTickDelta() {
-		return tickDelta;
-	}
-	
+
 	public int getAntialiasing() {
 		return antialiasing;
 	}
-	
-	public float[] getBackgroundColor(boolean sky) {
-		if (sky) {
-			return new float[] {backgroundRed, backgroundGreen, backgroundBlue};
-		} else {
-			return null;
-		}
+
+	public float[] getBackgroundColor(boolean skyColor) {
+		return skyColor ? backgroundColor : null;
 	}
-	
+
 	public boolean getResizeGui() {
 		return resizeGui && MinecraftClient.getInstance().world != null;
 	}
-	
+
 	public boolean shouldRotateParticles() {
 		return true;
 	}
-	
-	public boolean shouldOverrideFOV() {
-		return true;
+
+	public boolean getShowHand() {
+		return showHand;
 	}
-	
+
 	public double getPassFOV(double fovIn) {
-		return BufferManager.getFOV();
+		return (double)BufferManager.passFov;
 	}
-	
+
 	public double getFovX() {
 		return fov;
 	}
-	
+
 	public double getFovY() {
-		double displayWidth = MinecraftClient.getInstance().getWindow().getWidth();
-		double displayHeight = MinecraftClient.getInstance().getWindow().getHeight();
-		return getFovX()*displayHeight/displayWidth;
+		Window window = MinecraftClient.getInstance().getWindow();
+		float width = (float)window.getWidth();
+		float height = (float)window.getHeight();
+		return getFovX() * (double)height / (double)width;
+	}
+
+	static {
+		defaultProjection = Projection.Projections.FLEX;
+	}
+
+	public static enum Projections {
+		CUBIC,
+		CYLINDER,
+		EQUIRECTANGULAR,
+		FISHEYE,
+		FLEX,
+		HAMMER,
+		PANINI,
+		RECTILINEAR;
+
+		// $FF: synthetic method
+		/* 
+		@SuppressWarnings("unused")
+		private static Projections[] $values() {
+			return new Projections[]{CUBIC, CYLINDER, EQUIRECTANGULAR, FISHEYE, FLEX, HAMMER, PANINI, RECTILINEAR};
+		}*/
 	}
 }

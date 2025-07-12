@@ -1,111 +1,94 @@
 package net.id107.flexfov;
 
-import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
 
-import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL30;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.Framebuffer;
 import net.minecraft.client.util.Window;
+import net.minecraft.client.gl.WindowFramebuffer;
+import org.lwjgl.system.MemoryStack;
 
 public class BufferManager {
+	private static BufferManager instance;
+	public static boolean inConstructor = false;
+	public static int minX;
+	public static int maxX;
+	public static int minY;
+	public static int maxY;
+	public static float passFov;
+	private final Framebuffer framebuffer;
+	private int vaoId;
+	private int vboId;
 
-	private static Framebuffer framebuffer;
-	public static int[] framebufferTextures = new int[6];
-	
-	private static float minX;
-	private static float maxX;
-	private static float minY;
-	private static float maxY;
-	private static float fov;
-	
-	private static int displayWidth;
-	private static int displayHeight;
-	
-	public static void setupFrame() {
+	public static BufferManager getInstance() {
+		if (instance == null) {
+			instance = new BufferManager();
+		}
+
+		return instance;
+	}
+
+	private BufferManager() {
+		inConstructor = true;
 		Window window = MinecraftClient.getInstance().getWindow();
-		
-		if (window.getWidth() != displayWidth || window.getHeight() != displayHeight) {
-			deleteFramebuffer();
-			createFramebuffer();
-		}
+		int width = window.getFramebufferWidth();
+		int height = window.getFramebufferHeight();
+		framebuffer = new WindowFramebuffer(width, height);
+		framebuffer.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
+		framebuffer.clear(MinecraftClient.IS_SYSTEM_MAC);
+		createVBO();
+		inConstructor = false;
 	}
-	
-	public static void createFramebuffer() {
-		if (framebuffer != null) return;
-		
-		Window window = MinecraftClient.getInstance().getWindow();
-		int width = Math.min(window.getWidth(), window.getHeight());
-		framebuffer = new Framebuffer(width, width, false, false);
-		
-		for (int i = 0; i < framebufferTextures.length; i++) {
-			framebufferTextures[i] = GL11.glGenTextures();
-			GL11.glBindTexture(GL11.GL_TEXTURE_2D, framebufferTextures[i]);
-			GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA8, width, width,
-					0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, (ByteBuffer)null);
-			GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_NEAREST);
-			GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_NEAREST);
-			GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL11.GL_CLAMP);
-			GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL11.GL_CLAMP);
+
+	private void createVBO() {
+		MemoryStack stack = MemoryStack.stackPush();
+
+		try {
+			float[] vertexData = new float[]{-1.0F, -1.0F, 0.0F, 0.0F, 1.0F, -1.0F, 1.0F, 0.0F, 1.0F, 1.0F, 1.0F, 1.0F, 1.0F, 1.0F, 1.0F, 1.0F, -1.0F, 1.0F, 0.0F, 1.0F, -1.0F, -1.0F, 0.0F, 0.0F};
+			FloatBuffer vertexBuffer = stack.mallocFloat(vertexData.length);
+			vertexBuffer.put(vertexData).flip();
+			vaoId = GL30.glGenVertexArrays();
+			GL30.glBindVertexArray(vaoId);
+			vboId = GL30.glGenBuffers();
+			GL30.glBindBuffer(GL30.GL_ARRAY_BUFFER, vboId);
+			GL30.glBufferData(GL30.GL_ARRAY_BUFFER, vertexBuffer, GL30.GL_STATIC_DRAW);
+			GL30.glVertexAttribPointer(0, 2, GL30.GL_FLOAT, false, 16, 0L);
+			GL30.glVertexAttribPointer(1, 2, GL30.GL_FLOAT, false, 16, 8L);
+			GL30.glBindBuffer(GL30.GL_ARRAY_BUFFER, 0);
+			GL30.glBindVertexArray(0);
+		} catch (Throwable var5) {
+			if (stack != null) {
+				try {
+					stack.close();
+				} catch (Throwable var4) {
+					var5.addSuppressed(var4);
+				}
+			}
+
+			throw var5;
 		}
-		GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);
-		
-		float aspectRatio = (float)window.getWidth()/(float)window.getHeight();
-		
-		if (aspectRatio >= 1) {
-			minY = 0;
-			maxY = 1;
-			
-			minX = 0.5f - 0.5f/aspectRatio;
-			maxX = 0.5f + 0.5f/aspectRatio;
-			
-			fov = 90f;
-		} else {
-			minX = 0;
-			maxX = 1;
-			
-			minY = 0.5f - 0.5f*aspectRatio;
-			maxY = 0.5f + 0.5f*aspectRatio;
-			
-			fov = (float) Math.toDegrees(2*Math.atan(Math.tan(Math.toRadians(90f/2))/aspectRatio));
+
+		if (stack != null) {
+			stack.close();
 		}
-		
-		displayWidth = window.getWidth();
-		displayHeight = window.getHeight();
+
 	}
-	
-	public static void deleteFramebuffer() {
-		if (framebuffer == null) return;
-		
-		for (int i = 0; i < framebufferTextures.length; i++) {
-			GL11.glDeleteTextures(framebufferTextures[i]);
-			framebufferTextures[i] = -1;
-		}
-		framebuffer.delete();
-		framebuffer = null;
+
+	public void draw() {
+		GL30.glBindBuffer(GL30.GL_ARRAY_BUFFER, vboId);
+		GL30.glBindVertexArray(vaoId);
+		GL30.glEnableVertexAttribArray(0);
+		GL30.glEnableVertexAttribArray(1);
+		GL30.glDrawArrays(GL30.GL_TRIANGLES, 0, 6);
+		GL30.glDisableVertexAttribArray(1);
+		GL30.glDisableVertexAttribArray(0);
+		GL30.glBindBuffer(GL30.GL_ARRAY_BUFFER, 0);
+		GL30.glBindVertexArray(0);
 	}
-	
-	public static Framebuffer getFramebuffer() {
+
+	public Framebuffer getFramebuffer() {
 		return framebuffer;
-	}
-
-	public static float getMinX() {
-		return minX;
-	}
-
-	public static float getMaxX() {
-		return maxX;
-	}
-
-	public static float getMinY() {
-		return minY;
-	}
-
-	public static float getMaxY() {
-		return maxY;
-	}
-	
-	public static float getFOV() {
-		return fov;
 	}
 }

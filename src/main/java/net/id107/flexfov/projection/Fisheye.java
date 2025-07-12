@@ -1,33 +1,23 @@
 package net.id107.flexfov.projection;
 
-import org.lwjgl.opengl.GL20;
+import org.lwjgl.opengl.GL30;
 
 import net.id107.flexfov.Reader;
 
 public class Fisheye extends Projection {
-
 	public static boolean fullFrame = false;
 	public static int fisheyeType = 3;
-	
-	@Override
+
 	public String getFragmentShader() {
-		return Reader.read("flexfov:shaders/fisheye.fs");
+		return Reader.read("shaders/fisheye.fs");
 	}
-	
-	@Override
-	public float[] getBackgroundColor(boolean ignored) {
-		return super.getBackgroundColor(skyBackground);
-	}
-	
-	@Override
-	public void loadUniforms(float tickDelta) {
-		super.loadUniforms(tickDelta);
-		
-		int shaderProgram = getShaderProgram();
-		
-		int fullFrameUniform = GL20.glGetUniformLocation(shaderProgram, "fullFrame");
-		GL20.glUniform1i(fullFrameUniform, fullFrame ? 1 : 0);
-		int fsheyeTypeUniform = GL20.glGetUniformLocation(shaderProgram, "fisheyeType");
-		GL20.glUniform1i(fsheyeTypeUniform, fisheyeType);
+
+	public void loadUniforms() {
+		super.loadUniforms();
+		int shaderProgram = shaderManager.getShaderProgram();
+		int fullFrameUniform = GL30.glGetUniformLocation(shaderProgram, "fullFrame");
+		GL30.glUniform1i(fullFrameUniform, fullFrame ? 1 : 0);
+		int fisheyeTypeUniform = GL30.glGetUniformLocation(shaderProgram, "fisheyeType");
+		GL30.glUniform1i(fisheyeTypeUniform, fisheyeType);
 	}
 }

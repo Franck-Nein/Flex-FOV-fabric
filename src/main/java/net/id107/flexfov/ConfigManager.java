@@ -2,6 +2,8 @@ package net.id107.flexfov;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -15,15 +17,15 @@ import net.id107.flexfov.projection.Projection;
 
 public class ConfigManager {
 
-	private static final Path filePath = Paths.get(FabricLoader.getInstance().getConfigDir() + "/FlexFOVconfig.bin");
+	private static final Path filePath = Paths.get(String.valueOf(FabricLoader.getInstance().getConfigDir()) + "/FlexFOVconfig.bin");
 	
 	public static void loadConfig() {
-		if (Files.exists(filePath)) {
+		if (Files.exists(filePath, new LinkOption[0])) {
 			byte[] bytes;
 			try {
 				bytes = Files.readAllBytes(filePath);
-				if (bytes.length < 15) return;
-				if (bytes[0] != 3) return;
+				if (bytes.length < 17) return;
+				if (bytes[0] != 4) return;
 			} catch (IOException e) {
 				e.printStackTrace();
 				return;
@@ -42,12 +44,15 @@ public class ConfigManager {
 			if ((bytes[13] & 0b10000000) != 0) {
 				Projection.zoom = -Projection.zoom;
 			}
+			Projection.showHand = bytes[15] != 0;
+			Projection.defaultProjection = Projection.Projections.values()[bytes[16]];
 		}
+
 	}
-	
+
 	public static void saveConfig() {
 		byte[] bytes = new byte[] {
-				(byte)3,
+				(byte)4,
 				(byte)SettingsGui.currentGui,
 				(byte)AdvancedGui.currentGui,
 				(byte)Fisheye.fisheyeType,
@@ -61,10 +66,12 @@ public class ConfigManager {
 				Equirectangular.stabilizePitch ? (byte)1 : (byte)0,
 				Equirectangular.stabilizeYaw ? (byte)1 : (byte)0,
 				(byte)((Math.round(Projection.zoom*100)>>8)&0xFF),
-				(byte)(Math.round(Projection.zoom*100)&0xFF)
-		};
+				(byte)(Math.round(Projection.zoom*100)&0xFF),
+				Projection.showHand ? (byte)1 : (byte)0,
+				(byte)Projection.getProjection().ordinal() };
+
 		try {
-			Files.write(filePath, bytes);
+			Files.write(filePath, bytes, new OpenOption[0]);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}

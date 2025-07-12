@@ -14,32 +14,28 @@ public class Reader {
 		ResourceManager resourceManager = MinecraftClient.getInstance().getResourceManager();
 		Resource resource = null;
 		try {
-			resource = resourceManager.getResource(new Identifier(resourceIn));
+			resource = resourceManager.getResource(new Identifier("flex-fov", resourceIn));
 		} catch (IOException e) {
-			e.printStackTrace();
+			FlexFOV.LOGGER.error(e.getMessage());
 			return "";
 		}
-		
+
 		InputStream is = resource.getInputStream();
 		if (is == null) {
 			System.out.println("Shader not found");
 			return "";
-		}
-		
-		StringBuilder sb = new StringBuilder();
-		int i;
-		
-		try {
-			i = is.read();
-			while (i != -1) {
-				sb.append((char) i);
-				i = is.read();
+		} else {
+			StringBuilder sb = new StringBuilder();
+			try {
+				for (int i = is.read(); i != -1; i = is.read()) {
+					sb.append((char) i);
+				}
+			} catch (IOException e) {
+				FlexFOV.LOGGER.error(e.getMessage());
+				return "";
 			}
-		} catch (IOException e) {
-			e.printStackTrace();
-			return "";
+
+			return sb.toString();
 		}
-		
-		return sb.toString();
 	}
 }

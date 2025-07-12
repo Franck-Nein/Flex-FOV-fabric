@@ -37,7 +37,7 @@ vec3 rotate(vec3 ray, vec2 angle) {
   ray.x = x;
   ray.z = z;
 
-  return ray;
+  return normalize(ray);
 }
 
 vec3 calcZoom(vec3 ray) {

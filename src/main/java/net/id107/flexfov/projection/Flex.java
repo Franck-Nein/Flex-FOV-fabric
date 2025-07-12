@@ -4,25 +4,24 @@ import net.id107.flexfov.Reader;
 
 public class Flex extends Projection {
 
-	@Override
 	public String getFragmentShader() {
-		return Reader.read("flexfov:shaders/flex.fs");
+		return Reader.read("shaders/flex.fs");
 	}
-	
-	@Override
+
 	public double getPassFOV(double fovIn) {
 		double fov = getFovX();
-		if (fov <= 90) {
-			if (fov == 0) {
-				fov = 0.0001f;
-			}
-			return fov;
+		if (fov <= 90.0) {
+			return fov == 0.0 ? 1.0E-4 : fov;
+		} else {
+			return super.getPassFOV(fovIn);
 		}
-		return super.getPassFOV(fovIn);
 	}
-	
-	@Override
+
 	public boolean getResizeGui() {
 		return false;
+	}
+
+	public boolean getShowHand() {
+		return true;
 	}
 }
