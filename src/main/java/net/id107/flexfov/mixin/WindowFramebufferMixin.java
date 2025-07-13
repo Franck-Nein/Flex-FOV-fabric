@@ -21,14 +21,14 @@ public abstract class WindowFramebufferMixin implements FramebufferAdditions {
 	private final int[] colorArray = new int[6];
 
 	@Inject(
-		method = {"initSize"},
+		method = {"init"},
 		at = {@At(
 	value = "INVOKE",
 	target = "Lnet/minecraft/client/gl/WindowFramebuffer;checkFramebufferStatus()V"
 )}
 	)
 	
-	private void initSize(int width, int height, CallbackInfo ci) {
+	private void init(int width, int height, CallbackInfo ci) {
 		if (BufferManager.inConstructor) {
 			flexFOV$createBindColorArray(width, height);
 		}

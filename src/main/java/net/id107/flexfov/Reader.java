@@ -13,14 +13,15 @@ public class Reader {
 	public static String read(String resourceIn) {
 		ResourceManager resourceManager = MinecraftClient.getInstance().getResourceManager();
 		Resource resource = null;
+		InputStream is;
 		try {
-			resource = resourceManager.getResource(new Identifier("flex-fov", resourceIn));
+			resource = resourceManager.getResource(new Identifier("flex-fov", resourceIn)).get();
+			is = resource.getInputStream();
 		} catch (IOException e) {
 			FlexFOV.LOGGER.error(e.getMessage());
 			return "";
 		}
 
-		InputStream is = resource.getInputStream();
 		if (is == null) {
 			System.out.println("Shader not found");
 			return "";

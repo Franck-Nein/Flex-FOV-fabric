@@ -13,8 +13,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.Framebuffer;
 import net.minecraft.client.util.Window;
 import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.Matrix4f;
-import net.minecraft.util.math.Quaternion;
+import net.minecraft.util.math.RotationAxis;
 import net.minecraft.client.render.GameRenderer;
 
 public abstract class Projection {
@@ -114,47 +113,52 @@ public abstract class Projection {
 		runShader();
 	}
 
-	public static Matrix4f degfToQuat(float angle, float x, float y, float z) {
-		float halfAngleRadians = (float) Math.toRadians(angle / 2.0);
+	// public static Matrix4f degfToQuat(float angle, float x, float y, float z) {
+	// 	float halfAngleRadians = (float) Math.toRadians(angle / 2.0);
 
-		float w = (float) Math.cos(halfAngleRadians);
-		float qx = x * (float) Math.sin(halfAngleRadians);
-		float qy = y * (float) Math.sin(halfAngleRadians);
-		float qz = z * (float) Math.sin(halfAngleRadians);
+	// 	float w = (float) Math.cos(halfAngleRadians);
+	// 	float qx = x * (float) Math.sin(halfAngleRadians);
+	// 	float qy = y * (float) Math.sin(halfAngleRadians);
+	// 	float qz = z * (float) Math.sin(halfAngleRadians);
 
-		return new Matrix4f (new Quaternion(qx, qy, qz, w));
-  }
+	// 	return new Matrix4f (new Quaternion(qx, qy, qz, w));
+  	// }
 
 	public void rotateCamera(MatrixStack matrixStack) {
 		//Matrix4f matrix;
 		switch (renderPass) {
 			case 0://Front
 			default:
-				matrixStack.peek().getPositionMatrix().multiply(degfToQuat(360, 1, 0, 0));
+				//matrixStack.peek().getPositionMatrix().multiply(degfToQuat(360, 1, 0, 0));
 				break;
 			case 1: //Rigth
 				//matrix = new Matrix4f(new Quaternion(0.0F, 0.70710677F, 0.0F, 0.70710677F));
-				matrixStack.peek().getPositionMatrix().multiply(degfToQuat(90, 0, 1, 0));
+				//matrixStack.peek().getPositionMatrix().multiply(degfToQuat(90, 0, 1, 0));
+				matrixStack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(90));
 				//GL30.glRotatef(-90, 0, 1, 0);
 				break;
 			case 2: //Left
 				//matrix = new Matrix4f(new Quaternion(0.0F, -0.70710677F, 0.0F, 0.70710677F));
-				matrixStack.peek().getPositionMatrix().multiply(degfToQuat(-90, 0, 1, 0));
+				//matrixStack.peek().getPositionMatrix().multiply(degfToQuat(-90, 0, 1, 0));
+				matrixStack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-90));
 				//GL30.glRotatef(90, 0, 1, 0);
 				break;
 			case 3: //Bottom
 				//matrix = new Matrix4f(new Quaternion(0.70710677F, 0.0F, 0.0F, 0.70710677F));
-				matrixStack.peek().getPositionMatrix().multiply(degfToQuat(90, 1, 0, 0));
+				//matrixStack.peek().getPositionMatrix().multiply(degfToQuat(90, 1, 0, 0));
+				matrixStack.multiply(RotationAxis.POSITIVE_X.rotationDegrees(90));
 				//GL30.glRotatef(-90, 1, 0, 0);
 				break;
 			case 4: //Top
 				//matrix = new Matrix4f(new Quaternion(-0.70710677F, 0.0F, 0.0F, 0.70710677F));
-				matrixStack.peek().getPositionMatrix().multiply(degfToQuat(-90, 1, 0, 0));
+				//matrixStack.peek().getPositionMatrix().multiply(degfToQuat(-90, 1, 0, 0));
+				matrixStack.multiply(RotationAxis.POSITIVE_X.rotationDegrees(-90));
 				//GL30.glRotatef(90, 1, 0, 0);
 				break;
 			case 5: //Behind
 				//matrix = new Matrix4f(new Quaternion(0.0F, -1.0F, 0.0F, 0.0F));
-				matrixStack.peek().getPositionMatrix().multiply(degfToQuat(180, 0, 1, 0));
+				//matrixStack.peek().getPositionMatrix().multiply(degfToQuat(180, 0, 1, 0));
+				matrixStack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(180));
 				//GL30.glRotatef(180, 0, 1, 0);
 		}
 

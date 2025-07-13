@@ -3,10 +3,9 @@ package net.id107.flexfov.gui;
 import net.id107.flexfov.gui.advanced.AdvancedGui;
 import net.minecraft.client.gui.DrawableHelper;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget.PressAction;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.text.LiteralText;
+import net.minecraft.text.Text;
 
 public abstract class SettingsGui extends Screen {
 
@@ -15,7 +14,7 @@ public abstract class SettingsGui extends Screen {
 	public static int currentGui = 1;
 	
 	public SettingsGui(Screen parent) {
-		super(new LiteralText("Flex FOV Settings"));
+		super(Text.literal("Flex FOV Settings"));
 		parentScreen = parent;
 	}
 	
@@ -31,8 +30,11 @@ public abstract class SettingsGui extends Screen {
 		}
 	}
 	
-	public ButtonWidget mkButton(int x, int y, int butonWidth, int buttonHeight, String text, boolean isInactive, PressAction action) {
-		ButtonWidget button = new ButtonWidget(width / 2 + x, height / 6 + y, butonWidth, buttonHeight, new LiteralText(text), action);
+	public ButtonWidget mkButton(int x, int y, int buttonWidth, int buttonHeight, String text, boolean isInactive, ButtonWidget.PressAction action) {
+		ButtonWidget button = ButtonWidget.builder(Text.literal(text), action)
+				.position(width / 2 + x, height / 6 + y)
+				.size(buttonWidth, buttonHeight)
+				.build();
 		button.active=!isInactive;
 		addDrawableChild(button);
 		return button;
@@ -64,7 +66,7 @@ public abstract class SettingsGui extends Screen {
 	
 	public void render(MatrixStack matrices, int mouseX, int mouseY, float delta) {
 		this.renderBackground(matrices);
-		DrawableHelper.drawCenteredText(matrices, this.textRenderer, this.title, this.width / 2, 15, 16777215);
+		DrawableHelper.drawCenteredTextWithShadow(matrices, this.textRenderer, this.title, this.width / 2, 15, 16777215);
 		super.render(matrices, mouseX, mouseY, delta);
 	}
 }

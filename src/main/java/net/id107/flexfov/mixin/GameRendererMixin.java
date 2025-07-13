@@ -2,8 +2,7 @@ package net.id107.flexfov.mixin;
 
 import net.id107.flexfov.mixinHelpers.GameRendererAdditions;
 import net.id107.flexfov.projection.Projection;
-import net.minecraft.util.math.Quaternion;
-import net.minecraft.util.math.Vec3f;
+import net.minecraft.util.math.RotationAxis;
 import net.minecraft.entity.Entity;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -49,7 +48,7 @@ public abstract class GameRendererMixin implements GameRendererAdditions {
 		cancellable = true
 	)
 	private void setFOV(Camera camera, float tickDelta, boolean changingFov, CallbackInfoReturnable<Double> cir) {
-		cir.setReturnValue(Double.valueOf(Projection.getInstance().getPassFOV(((Double)cir.getReturnValue()).doubleValue())));
+		cir.setReturnValue(Projection.getInstance().getPassFOV(cir.getReturnValue()));
 	}
 	
 	@ModifyVariable(
@@ -57,8 +56,8 @@ public abstract class GameRendererMixin implements GameRendererAdditions {
 		ordinal = 1,
 		at = @At(
 			value = "INVOKE",
-			target = "Lnet/minecraft/client/render/GameRenderer;bobViewWhenHurt(Lnet/minecraft/client/util/math/MatrixStack;F)V"
-		)
+			target = "Lnet/minecraft/client/render/GameRenderer;tiltViewWhenHurt(Lnet/minecraft/client/util/math/MatrixStack;F)V",
+			ordinal = 0)
 	)
 	private MatrixStack updateCamera(MatrixStack matrixStack) {
 		Projection.getInstance().rotateCamera(matrixStack);
@@ -82,7 +81,7 @@ public abstract class GameRendererMixin implements GameRendererAdditions {
 				handTickDelta = tickDelta;
 			}
 
-			matrices.peek().getPositionMatrix().loadIdentity();
+			matrices.peek().getPositionMatrix().identity();
 		}
 	}
 
@@ -90,7 +89,7 @@ public abstract class GameRendererMixin implements GameRendererAdditions {
 		method = {"renderWorld"},
 		at = @At(
 	value = "INVOKE",
-	target = "Lnet/minecraft/client/render/WorldRenderer;setupFrustum(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/util/math/Vec3d;Lnet/minecraft/util/math/Matrix4f;)V"
+	target = "Lnet/minecraft/client/render/WorldRenderer;setupFrustum(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/util/math/Vec3d;Lorg/joml/Matrix4f;)V"
 ),
 		index = 0
 	)
@@ -101,10 +100,11 @@ public abstract class GameRendererMixin implements GameRendererAdditions {
 		Entity entity = mc.getCameraEntity() == null ? mc.player : mc.getCameraEntity();
 		Projection.getInstance().rotateCamera(matrices);
 		if (mc.options.getPerspective().isFrontView()) {
-			matrices.peek().getPositionMatrix().multiply(new Quaternion(new Vec3f(0.0F, 1.0F, 0.0F), 180.0F, true));
+			matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(180.0F));
 		}
 
-		matrices.peek().getPositionMatrix().multiply(new Quaternion(((Entity)entity).getPitch(), ((Entity)entity).getYaw() + 180.0F, 0.0F, true));
+		matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(entity.getYaw() + 180.0F));
+		matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(entity.getPitch()));
 		return matrices;
 	}
 
@@ -112,7 +112,7 @@ public abstract class GameRendererMixin implements GameRendererAdditions {
 		method = {"renderWorld"},
 		at = @At(
 	value = "INVOKE",
-	target = "Lnet/minecraft/client/render/WorldRenderer;render(Lnet/minecraft/client/util/math/MatrixStack;FJZLnet/minecraft/client/render/Camera;Lnet/minecraft/client/render/GameRenderer;Lnet/minecraft/client/render/LightmapTextureManager;Lnet/minecraft/util/math/Matrix4f;)V"
+	target = "Lnet/minecraft/client/render/WorldRenderer;render(Lnet/minecraft/client/util/math/MatrixStack;FJZLnet/minecraft/client/render/Camera;Lnet/minecraft/client/render/GameRenderer;Lnet/minecraft/client/render/LightmapTextureManager;Lorg/joml/Matrix4f;)V"
 ),
 		index = 0
 	)
@@ -137,6 +137,7 @@ public abstract class GameRendererMixin implements GameRendererAdditions {
 		}
 	}
 
+	@Override
 	public void flexFOV$renderHand() {
 		renderHand(handMatrices, camera, handTickDelta);
 	}

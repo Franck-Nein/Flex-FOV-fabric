@@ -4,7 +4,7 @@ import net.id107.flexfov.ConfigManager;
 import net.id107.flexfov.projection.Projection;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.text.LiteralText;
+import net.minecraft.text.Text;
 
 public class CubicGui extends AdvancedGui {
 
@@ -16,11 +16,14 @@ public class CubicGui extends AdvancedGui {
 	protected void init() {
 		super.init();
 		
-		addDrawableChild(new ButtonWidget(width / 2 - 155, height / 6 + 84, 150, 20,
-				new LiteralText("Background Color: " + (Projection.skyBackground ? "Sky" : "Black")), (buttonWidget) -> {
+		addDrawableChild(ButtonWidget.builder(
+				Text.literal("Background Color: " + (Projection.skyBackground ? "Sky" : "Black")),(button) -> {
 					Projection.skyBackground = !Projection.skyBackground;
-					buttonWidget.setMessage(new LiteralText("Background Color: " + (Projection.skyBackground ? "Sky" : "Black")));
+					button.setMessage(Text.literal("Background Color: " + (Projection.skyBackground ? "Sky" : "Black")));
 					ConfigManager.saveConfig();
-				}));
+				})
+				.position(width / 2 - 155, height / 6 + 84)
+				.size(150, 20)
+				.build());
 	}
 }

@@ -5,8 +5,8 @@ import net.id107.flexfov.projection.Fisheye;
 import net.id107.flexfov.projection.Projection;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.option.DoubleOption;
-import net.minecraft.text.LiteralText;
+import net.minecraft.client.option.SimpleOption;
+import net.minecraft.text.Text;
 
 public class FisheyeGui extends AdvancedGui {
 	public FisheyeGui(Screen parent) {
@@ -45,23 +45,37 @@ public class FisheyeGui extends AdvancedGui {
 		if (Fisheye.fisheyeType == 1) fovSliderLimit = (int)Math.ceil(fovSliderLimit*0.713); //Thoby 256.68 degrees, slider goes up to 257
 		if (Fisheye.fisheyeType == 0) fovSliderLimit = 180; //Orthographic
 		int finalSliderLimit = fovSliderLimit; // WHY?
-		DoubleOption FOV = new DoubleOption("fisheyeFov", 0, fovSliderLimit, 1,
-				(gameOptions) -> {return Math.min(finalSliderLimit, Projection.getInstance().getFovX());},
-				(gameOptions, number) -> {Projection.fov = number; ConfigManager.saveConfig();},
-				(gameOptions, doubleOption) -> {return new LiteralText("FOV: " + (int)Math.min(finalSliderLimit, Projection.getInstance().getFovX()));});
-		addDrawableChild(FOV.createButton(client.options, width / 2 - 180, height / 6 + 132, fovSliderLimit));
+		SimpleOption<Double> FOV = new SimpleOption<>(
+			"fisheyeFov", // Identifier for localization
+			SimpleOption.emptyTooltip(),
+			(gameOptions, value) -> Text.literal("FOV: " + (int) (value * finalSliderLimit)), // Map [0,1] to [0, fovSliderLimit] for display
+			SimpleOption.DoubleSliderCallbacks.INSTANCE, // Use DoubleSliderCallbacks with range [0,1]
+			Math.min(finalSliderLimit, Projection.getInstance().getFovX()) / fovSliderLimit, // Default normalized to [0,1]
+			(value) -> {
+				Projection.fov = value * finalSliderLimit; // Map [0,1] to [0, fovSliderLimit] and save
+				ConfigManager.saveConfig();
+			}
+	);
+	addDrawableChild(FOV.createWidget(client.options, width / 2 - 180, height / 6 + 132, fovSliderLimit));
 		
-		addDrawableChild(new ButtonWidget(width / 2 - 155, height / 6 + 84, 150, 20,
-				new LiteralText("Background Color: " + (Projection.skyBackground ? "Sky" : "Black")), (buttonWidget) -> {
+		addDrawableChild(ButtonWidget.builder(
+				Text.literal("Background Color: " + (Projection.skyBackground ? "Sky" : "Black")), (button) -> {
 					Projection.skyBackground = !Projection.skyBackground;
-					buttonWidget.setMessage(new LiteralText("Background Color: " + (Projection.skyBackground ? "Sky" : "Black")));
+					button.setMessage(Text.literal("Background Color: " + (Projection.skyBackground ? "Sky" : "Black")));
 					ConfigManager.saveConfig();
-				}));
-				addDrawableChild(new ButtonWidget(width / 2 - 155, height / 6 + 108, 150, 20,
-				new LiteralText("Full Frame: " + (Fisheye.fullFrame ? "ON" : "OFF")), (buttonWidget) -> {
+				})
+				.position(width / 2 - 155, height / 6 + 84)
+				.size(150, 20)
+				.build());
+
+		addDrawableChild(ButtonWidget.builder(
+				Text.literal("Full Frame: " + (Fisheye.fullFrame ? "ON" : "OFF")), (button) -> {
 					Fisheye.fullFrame = !Fisheye.fullFrame;
-					buttonWidget.setMessage(new LiteralText("Full Frame: " + (Fisheye.fullFrame ? "ON" : "OFF")));
+					button.setMessage(Text.literal("Full Frame: " + (Fisheye.fullFrame ? "ON" : "OFF")));
 					ConfigManager.saveConfig();
-				}));
+				})
+				.position(width / 2 - 155, height / 6 + 108)
+				.size(150, 20)
+				.build());
 	}
 }
