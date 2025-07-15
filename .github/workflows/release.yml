@@ -1,0 +1,52 @@
+name: Build Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Parse mod and Minecraft versions
+        id: versions
+        run: |
+          MOD_VERSION=$(jq -r '.version' src/main/resources/fabric.mod.json)
+          MC_VERSION=$(jq -r '.depends.minecraft' src/main/resources/fabric.mod.json)
+          TAG="v${MOD_VERSION}-${MC_VERSION//\~/}"
+          
+          echo "MOD_VERSION=${MOD_VERSION}" >> $GITHUB_ENV
+          echo "RELEASE_TAG=${TAG}" >> $GITHUB_ENV
+          
+          echo "Mod Version: ${MOD_VERSION}"
+          echo "Release Tag: ${TAG}"
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew build
+
+      - name: Create and Upload
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          files: |
+            build/libs/FlexFOV-${{ env.MOD_VERSION }}.jar
+            build/libs/FlexFOV-${{ env.MOD_VERSION }}-sources.jar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
