@@ -2,16 +2,12 @@ package net.id107.flexfov.mixin;
 
 import net.id107.flexfov.mixinHelpers.GameRendererAdditions;
 import net.id107.flexfov.projection.Projection;
-import net.minecraft.util.math.RotationAxis;
-import net.minecraft.entity.Entity;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyArg;
-import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
@@ -34,9 +30,9 @@ public abstract class GameRendererMixin implements GameRendererAdditions {
 	@Redirect(
 		method = {"render"},
 		at = @At(
-	value = "INVOKE",
-	target = "Lnet/minecraft/client/render/GameRenderer;renderWorld(FJLnet/minecraft/client/util/math/MatrixStack;)V"
-)
+			value = "INVOKE",
+			target = "Lnet/minecraft/client/render/GameRenderer;renderWorld(FJLnet/minecraft/client/util/math/MatrixStack;)V"
+		)
 	)
 	private void renderWorld(GameRenderer instance, float tickDelta, long limitTime, MatrixStack matrices) {
 		Projection.getInstance().renderWorld(instance, tickDelta, limitTime, matrices);
@@ -51,17 +47,15 @@ public abstract class GameRendererMixin implements GameRendererAdditions {
 		cir.setReturnValue(Projection.getInstance().getPassFOV(cir.getReturnValue()));
 	}
 	
-	@ModifyVariable(
+	@Inject(
 		method = {"renderWorld"},
-		ordinal = 1,
 		at = @At(
 			value = "INVOKE",
 			target = "Lnet/minecraft/client/render/GameRenderer;tiltViewWhenHurt(Lnet/minecraft/client/util/math/MatrixStack;F)V",
 			ordinal = 0)
 	)
-	private MatrixStack updateCamera(MatrixStack matrixStack) {
+	private void updateCamera(float tickDelta, long limitTime, MatrixStack matrixStack, CallbackInfo ci) {
 		Projection.getInstance().rotateCamera(matrixStack);
-		return matrixStack;
 	}
 
 	@Redirect(
@@ -81,44 +75,8 @@ public abstract class GameRendererMixin implements GameRendererAdditions {
 				handTickDelta = tickDelta;
 			}
 
-			matrices.peek().getPositionMatrix().identity();
 		}
-	}
-
-	@ModifyArg(
-		method = {"renderWorld"},
-		at = @At(
-	value = "INVOKE",
-	target = "Lnet/minecraft/client/render/WorldRenderer;setupFrustum(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/util/math/Vec3d;Lorg/joml/Matrix4f;)V"
-),
-		index = 0
-	)
-	private MatrixStack setupFrustum(MatrixStack matrices) {
-		matrices.push();
 		matrices.loadIdentity();
-		MinecraftClient mc = MinecraftClient.getInstance();
-		Entity entity = mc.getCameraEntity() == null ? mc.player : mc.getCameraEntity();
-		Projection.getInstance().rotateCamera(matrices);
-		if (mc.options.getPerspective().isFrontView()) {
-			matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(180.0F));
-		}
-
-		matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(entity.getYaw() + 180.0F));
-		matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(entity.getPitch()));
-		return matrices;
-	}
-
-	@ModifyArg(
-		method = {"renderWorld"},
-		at = @At(
-	value = "INVOKE",
-	target = "Lnet/minecraft/client/render/WorldRenderer;render(Lnet/minecraft/client/util/math/MatrixStack;FJZLnet/minecraft/client/render/Camera;Lnet/minecraft/client/render/GameRenderer;Lnet/minecraft/client/render/LightmapTextureManager;Lorg/joml/Matrix4f;)V"
-),
-		index = 0
-	)
-	private MatrixStack worldRender(MatrixStack matrices) {
-		matrices.pop();
-		return matrices;
 	}
 
 	@Inject(
