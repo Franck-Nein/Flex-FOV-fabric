@@ -21,7 +21,7 @@ public abstract class OptionsScreenMixin extends Screen {
 		at = {@At(
 	value = "TAIL",
 	target = "Lnet/minecraft/client/gui/screen/Screen;addDrawableChild(Lnet/minecraft/client/gui/Element;)Lnet/minecraft/client/gui/Element;",
-	ordinal = 4
+	ordinal = 0
 )}
 	)
 	private void addDrawableChild(CallbackInfo ci) {
