@@ -1,7 +1,7 @@
 package net.id107.flexfov.gui;
 
 import net.id107.flexfov.gui.advanced.AdvancedGui;
-import net.minecraft.client.gui.DrawableHelper;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.util.math.MatrixStack;
@@ -63,10 +63,11 @@ public abstract class SettingsGui extends Screen {
 			client.setScreen(parentScreen);
 		});
 	}
-	
-	public void render(MatrixStack matrices, int mouseX, int mouseY, float delta) {
-		this.renderBackground(matrices);
-		DrawableHelper.drawCenteredTextWithShadow(matrices, this.textRenderer, this.title, this.width / 2, 15, 16777215);
-		super.render(matrices, mouseX, mouseY, delta);
+
+	@Override
+	public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+		this.renderBackground(context);
+		context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 15, 16777215);
+		super.render(context, mouseX, mouseY, delta);
 	}
 }
