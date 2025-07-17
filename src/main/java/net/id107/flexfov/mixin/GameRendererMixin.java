@@ -26,6 +26,11 @@ public abstract class GameRendererMixin implements GameRendererAdditions {
 	@Final
 	@Shadow
 	private Camera camera;
+	@Shadow
+	private void bobView(MatrixStack matrices, float tickDelta) {}
+	@Final
+	@Shadow
+	private MinecraftClient client;
 
 	@Redirect(
 		method = {"render"},
@@ -46,7 +51,19 @@ public abstract class GameRendererMixin implements GameRendererAdditions {
 	private void setFOV(Camera camera, float tickDelta, boolean changingFov, CallbackInfoReturnable<Double> cir) {
 		cir.setReturnValue(Projection.getInstance().getPassFOV(cir.getReturnValue()));
 	}
-	
+
+	//cancel bob
+	@Redirect(
+			method = {"renderWorld"},
+			at = @At(
+					value = "INVOKE",
+					target = "Ljava/lang/Boolean;booleanValue()Z"
+			)
+	)
+	private boolean cancelBob(Boolean instance){
+		return false;
+	}
+
 	@Inject(
 		method = {"renderWorld"},
 		at = @At(
@@ -56,6 +73,10 @@ public abstract class GameRendererMixin implements GameRendererAdditions {
 	)
 	private void updateCamera(float tickDelta, long limitTime, MatrixStack matrixStack, CallbackInfo ci) {
 		Projection.getInstance().rotateCamera(matrixStack);
+		// Trigger bob
+		if (this.client.options.getBobView().getValue()) {
+			this.bobView(matrixStack, tickDelta);
+		}
 	}
 
 	@Redirect(
