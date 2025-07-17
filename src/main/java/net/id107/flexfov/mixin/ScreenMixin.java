@@ -13,7 +13,7 @@ import net.minecraft.client.gui.screen.Screen;
 public abstract class ScreenMixin {
 
 	@Inject(
-		method = "renderBackground(Lnet/minecraft/client/gui/DrawContext;)V",
+		method = "renderBackground",
 		at = @At(value = "HEAD"), 
 		cancellable = true)
 

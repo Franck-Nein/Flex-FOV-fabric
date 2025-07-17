@@ -16,7 +16,7 @@ public abstract class WorldRendererMixin {
 		method = {"setupTerrain"},
 		at = {@At(
 	value = "INVOKE",
-	target = "Ljava/util/concurrent/atomic/AtomicBoolean;compareAndSet(ZZ)Z"
+	target = "Lnet/minecraft/client/render/ChunkRenderingDataPreparer;method_52836()Z"
 )}
 	)
 	private void setFrustum(CallbackInfo ci) {
