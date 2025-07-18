@@ -23,13 +23,13 @@ public abstract class BillboardParticleMixin extends Particle {
 		super(world, x, y, z);
 	}
 
-	@Redirect(
-		method = {"buildGeometry"},
-		at = @At(
-	value = "INVOKE",
-	target = "Lnet/minecraft/client/render/Camera;getRotation()Lorg/joml/Quaternionf;"
-)
-	)
+//	@Redirect(
+//		method = {"buildGeometry"},
+//		at = @At(
+//			value = "INVOKE",
+//			target = "Lnet/minecraft/client/render/Camera;getRotation()Lorg/joml/Quaternionf;" //This fails for some reason
+//		)
+//	)
 	private Quaternionf rotateParticle(Camera instance) {
 		if (!Projection.getInstance().shouldRotateParticles()) {
 			return instance.getRotation();
