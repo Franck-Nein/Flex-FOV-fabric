@@ -23,25 +23,23 @@ public abstract class BillboardParticleMixin extends Particle {
 		super(world, x, y, z);
 	}
 
-//	@Redirect(
-//		method = {"buildGeometry"},
-//		at = @At(
-//			value = "INVOKE",
-//			target = "Lnet/minecraft/client/render/Camera;getRotation()Lorg/joml/Quaternionf;" //This fails for some reason
-//		)
-//	)
-	private Quaternionf rotateParticle(Camera instance) {
+	@Redirect(
+		method = {"buildGeometry"},
+		at = @At(
+			value = "INVOKE",
+			target = "Lnet/minecraft/client/particle/BillboardParticle$Rotator;setRotation(Lorg/joml/Quaternionf;Lnet/minecraft/client/render/Camera;F)V"
+		)
+	)
+	private void rotateParticle(BillboardParticle.Rotator rotator, Quaternionf rotation, Camera camera, float tickDelta) {
 		if (!Projection.getInstance().shouldRotateParticles()) {
-			return instance.getRotation();
+			rotator.setRotation(rotation, camera, tickDelta);
 		} else {
 			MinecraftClient mc = MinecraftClient.getInstance();
-			float tickDelta = mc.getTickDelta();
 			Vec3d particlePos = new Vec3d(MathHelper.lerp(tickDelta, this.prevPosX, this.x), MathHelper.lerp(tickDelta, this.prevPosY, this.y), MathHelper.lerp(tickDelta, this.prevPosZ, this.z));
 			Vec3d dir = mc.gameRenderer.getCamera().getPos().subtract(particlePos).normalize();
-			Quaternionf rotation = new Quaternionf(0.0F, 0.0F, 0.0F, 1.0F);
+			rotation.set(0.0F, 0.0F, 0.0F, 1.0F);
 			rotation.mul(RotationAxis.POSITIVE_Y.rotation((float) Math.atan2(-dir.x, -dir.z)));
 			rotation.mul(RotationAxis.POSITIVE_X.rotation((float) Math.asin(dir.y)));
-			return rotation;
 		}
 	}
 
