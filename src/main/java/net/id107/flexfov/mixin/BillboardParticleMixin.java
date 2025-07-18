@@ -17,7 +17,7 @@ import net.minecraft.util.math.RotationAxis;
 import org.joml.Quaternionf;
 import net.minecraft.util.math.Vec3d;
 
-@Mixin({BillboardParticle.class})
+@Mixin(value = {BillboardParticle.class}, priority = 1001)
 public abstract class BillboardParticleMixin extends Particle {
 	protected BillboardParticleMixin(ClientWorld world, double x, double y, double z) {
 		super(world, x, y, z);

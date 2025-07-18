@@ -15,11 +15,10 @@ public abstract class WorldRendererMixin {
 	@Inject(
 		method = {"setupTerrain"},
 		at = {@At(
-	value = "INVOKE",
-	target = "Ljava/util/concurrent/atomic/AtomicBoolean;compareAndSet(ZZ)Z"
-)}
+			value = "HEAD"
+		)}
 	)
 	private void setFrustum(CallbackInfo ci) {
-		lastCameraPitch = Double.NaN;
+		this.lastCameraPitch = Double.NaN;
 	}
 }
