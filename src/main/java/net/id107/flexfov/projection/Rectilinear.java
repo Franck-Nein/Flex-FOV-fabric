@@ -11,7 +11,7 @@ public class Rectilinear extends Projection {
 	}
 
 	public void renderWorld(GameRenderer gameRenderer, float tickDelta, long limitTime, MatrixStack matrices) {
-		gameRenderer.renderWorld(tickDelta, limitTime, matrices);
+		gameRenderer.renderWorld(tickDelta, limitTime);
 	}
 
 	public void rotateCamera(MatrixStack matrixStack) {}

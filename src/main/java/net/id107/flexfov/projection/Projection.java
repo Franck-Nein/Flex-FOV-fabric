@@ -101,7 +101,7 @@ public abstract class Projection {
 
 		for(renderPass = 5; renderPass >= 0; --renderPass) {
 			mc.worldRenderer.scheduleTerrainUpdate();
-			gameRenderer.renderWorld(tickDelta, limitTime, matrices);
+			gameRenderer.renderWorld(tickDelta, limitTime);
 			if (getResizeGui() && renderPass == 0) {
 				return;
 			}

@@ -2,6 +2,7 @@ package net.id107.flexfov.mixin;
 
 import net.id107.flexfov.mixinHelpers.GameRendererAdditions;
 import net.id107.flexfov.projection.Projection;
+import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -11,16 +12,18 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.entity.Entity;
 
-@Mixin({GameRenderer.class})
+@Mixin(GameRenderer.class)
 public abstract class GameRendererMixin implements GameRendererAdditions {
 	@Unique
-	private MatrixStack handMatrices;
+	private Matrix4f handMatrix;
 	@Unique
 	private float handTickDelta;
 	@Final
@@ -33,14 +36,14 @@ public abstract class GameRendererMixin implements GameRendererAdditions {
 	private MinecraftClient client;
 
 	@Redirect(
-		method = {"render"},
+		method = {"render(FJZ)V"},
 		at = @At(
 			value = "INVOKE",
-			target = "Lnet/minecraft/client/render/GameRenderer;renderWorld(FJLnet/minecraft/client/util/math/MatrixStack;)V"
+			target = "Lnet/minecraft/client/render/GameRenderer;renderWorld(FJ)V"
 		)
 	)
-	private void renderWorld(GameRenderer instance, float tickDelta, long limitTime, MatrixStack matrices) {
-		Projection.getInstance().renderWorld(instance, tickDelta, limitTime, matrices);
+	private void renderWorld(GameRenderer instance, float tickDelta, long limitTime) {
+		Projection.getInstance().renderWorld(instance, tickDelta, limitTime, new MatrixStack());
 	}
 
 	@Inject(
@@ -54,24 +57,24 @@ public abstract class GameRendererMixin implements GameRendererAdditions {
 
 	//cancel bob
 	@Redirect(
-			method = {"renderWorld"},
+			method = {"renderWorld(FJ)V"},
 			at = @At(
 					value = "INVOKE",
-					target = "Ljava/lang/Boolean;booleanValue()Z"
+					target = "Lnet/minecraft/client/render/GameRenderer;bobView(Lnet/minecraft/client/util/math/MatrixStack;F)V"
 			)
 	)
-	private boolean cancelBob(Boolean instance){
-		return false;
+	private void cancelBob(GameRenderer instance, MatrixStack matrices, float tickDelta){
 	}
 
 	@Inject(
-		method = {"renderWorld"},
+		method = {"renderWorld(FJ)V"},
 		at = @At(
 			value = "INVOKE",
-			target = "Lnet/minecraft/client/render/GameRenderer;tiltViewWhenHurt(Lnet/minecraft/client/util/math/MatrixStack;F)V",
-			ordinal = 0)
+			target = "Lnet/minecraft/client/render/GameRenderer;tiltViewWhenHurt(Lnet/minecraft/client/util/math/MatrixStack;F)V"
+			),
+			locals = LocalCapture.CAPTURE_FAILHARD
 	)
-	private void updateCamera(float tickDelta, long limitTime, MatrixStack matrixStack, CallbackInfo ci) {
+	private void updateCamera(float tickDelta, long limitTime, CallbackInfo ci, boolean bl, Camera camera, Entity entity, double d, Matrix4f matrix4f, MatrixStack matrixStack) {
 		Projection.getInstance().rotateCamera(matrixStack);
 		// Trigger bob
 		if (this.client.options.getBobView().getValue()) {
@@ -80,28 +83,27 @@ public abstract class GameRendererMixin implements GameRendererAdditions {
 	}
 
 	@Redirect(
-		method = {"renderWorld"},
+		method = {"renderWorld(FJ)V"},
 		at = @At(
 			value = "INVOKE",
-			target = "Lnet/minecraft/client/render/GameRenderer;renderHand(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/Camera;F)V"
+			target = "Lnet/minecraft/client/render/GameRenderer;renderHand(Lnet/minecraft/client/render/Camera;FLorg/joml/Matrix4f;)V"
 		)
 	)
-	private void renderHand(GameRenderer instance, MatrixStack matrices, Camera camera, float tickDelta) {
+	private void renderHand(GameRenderer instance, Camera camera, float tickDelta, Matrix4f matrix) {
 		Projection projection = Projection.getInstance();
 		if (projection.getShowHand() && projection.getResizeGui() && projection.renderPass == 0) {
-			renderHand(matrices, camera, tickDelta);
+			this.renderHand(camera, tickDelta, matrix);
 		} else {
 			if (projection.renderPass == 0) {
-				handMatrices = matrices;
-				handTickDelta = tickDelta;
+				this.handMatrix = matrix;
+				this.handTickDelta = tickDelta;
 			}
 
 		}
-		matrices.loadIdentity();
 	}
 
 	@Inject(
-		method = {"render"},
+		method = {"render(FJZ)V"},
 		at = {@At("TAIL")}
 	)
 	private void saveGui(CallbackInfo ci) {
@@ -118,11 +120,9 @@ public abstract class GameRendererMixin implements GameRendererAdditions {
 
 	@Override
 	public void flexFOV$renderHand() {
-		renderHand(handMatrices, camera, handTickDelta);
+		renderHand(camera, handTickDelta, handMatrix);
 	}
-
 	@Shadow
-	private void renderHand(MatrixStack matrices, Camera camera, float tickDelta) {
-
+	private void renderHand(Camera camera, float tickDelta, Matrix4f matrix) {
 	}
 }
