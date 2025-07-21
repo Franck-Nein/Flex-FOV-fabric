@@ -1,9 +1,12 @@
 package net.id107.flexfov.mixin;
 
+import net.minecraft.client.gui.widget.DirectionalLayoutWidget;
+import net.minecraft.client.gui.widget.GridWidget;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
 import net.id107.flexfov.gui.SettingsGui;
 import net.minecraft.client.gui.screen.Screen;
@@ -19,17 +22,17 @@ public abstract class OptionsScreenMixin extends Screen {
 	@Inject(
 		method = {"init()V"},
 		at = {@At(
-	value = "TAIL",
-	target = "Lnet/minecraft/client/gui/screen/Screen;addDrawableChild(Lnet/minecraft/client/gui/Element;)Lnet/minecraft/client/gui/Element;",
-	ordinal = 0
-)}
+				value = "INVOKE",
+				target = "Lnet/minecraft/client/gui/screen/option/OptionsScreen;createButton(Lnet/minecraft/text/Text;Ljava/util/function/Supplier;)Lnet/minecraft/client/gui/widget/ButtonWidget;",
+				ordinal = 0
+		)},
+		locals = LocalCapture.CAPTURE_FAILHARD
 	)
-	private void addDrawableChild(CallbackInfo ci) {
-		addDrawableChild(ButtonWidget.builder(
+	private void addCustomButton(CallbackInfo ci, DirectionalLayoutWidget directionalLayoutWidget) {
+		directionalLayoutWidget.add(ButtonWidget.builder(
 			Text.literal("Flex FOV Settings"),
-			(button) -> client.setScreen(SettingsGui.getGui(this)))
-			.position(width / 2 - 155, height / 6 + 15)
-			.size(150, 20)
-			.build());
+			(button) -> this.client.setScreen(SettingsGui.getGui(this))
+			).build()
+		);
 	}
 }
